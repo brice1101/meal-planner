@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DdlMappings">
+    <mapping uuid="f94b3a4c-2c15-485f-b34e-33d01cb8a847" name="recipes Mapping">
+      <data-sources db="d54da1f5-4126-496e-aa8e-7e14810e3970" ddl="753af1e6-75ad-41df-837b-e99ff3b5ca04" />
+    </mapping>
+  </component>
+</project>
