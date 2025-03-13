@@ -230,7 +230,7 @@ def get_url():
     if num_pages == 0:
         return category_url
     else:
-        category_url += f'?page={num_pages}'
+        return f'{category_url}?page={num_pages}'
 
 
 def main():
