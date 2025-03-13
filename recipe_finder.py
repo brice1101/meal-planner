@@ -2,6 +2,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import ttk
 from tkinter import scrolledtext
+import webbrowser
 
 
 def get_all_ingredients():
@@ -13,11 +14,13 @@ def get_all_ingredients():
     conn.close()
     return ingredients
 
+
 def update_ingredient_list(event):
     """Updates the dropdown list based on the user's input."""
     typed_text = ingredient_combobox.get().lower()
     filtered_ingredients = [ing for ing in all_ingredients if typed_text in ing.lower()]
     ingredient_combobox['values'] = filtered_ingredients
+
 
 def add_ingredient():
     """Adds the selected ingredient to the ingredients list."""
@@ -66,13 +69,45 @@ def search_recipes():
     all_ingredients = all_ingredients_var.get()
 
     results = get_recipe_by_ingredients(ingredients, all_ingredients)
+    display_recipes(results)
 
-    results_text.delete(1.0, tk.END)
-    if results:
-        for title, url in results:
-            results_text.insert(tk.END, f"Recipe: {title}\nURL: {url}\n\n")
-    else:
-        results_text.insert(tk.END, "No recipes found.")
+
+def show_recipe_details(recipe_title, recipe_url):
+    """Displays recipe details in a new window."""
+    details_window = tk.Toplevel(window)
+    details_window.title(recipe_title)
+
+    title_label = tk.Label(details_window, text=f"Recipe: {recipe_title}", font=("Arial", 14, "bold"))
+    title_label.pack()
+
+    url_label = tk.Label(details_window, text=f"URL: {recipe_url}")
+    url_label.pack()
+
+    def open_url():
+        webbrowser.open_new(recipe_url)
+
+    open_url_button = tk.Button(details_window, text="Open URL", command=open_url)
+    open_url_button.pack()
+
+def display_recipes(results):
+    """Displays recipes in a Listbox."""
+    results_listbox.delete(0, tk.END) #Clear listbox.
+    for title, url in results:
+        results_listbox.insert(tk.END, title)
+
+    def on_recipe_select(event):
+        """Handles recipe selection from the Listbox."""
+        selected_index = results_listbox.curselection()
+        if selected_index:
+            selected_title = results_listbox.get(selected_index[0])
+            for title, url in results:
+                if title == selected_title:
+                    show_recipe_details(title, url)
+                    break
+
+    results_listbox.bind("<Double-1>", on_recipe_select) #Double click to view recipe.
+
+
 
 # Create the main window
 window = tk.Tk()
@@ -107,8 +142,9 @@ all_ingredients_checkbox.pack()
 search_button = tk.Button(window, text="Search", command=search_recipes)
 search_button.pack()
 
-# Results display
-results_text = scrolledtext.ScrolledText(window, width=60, height=20)
-results_text.pack()
+
+# Results display (Listbox)
+results_listbox = tk.Listbox(window, width=60, height=10)
+results_listbox.pack()
 
 window.mainloop()
