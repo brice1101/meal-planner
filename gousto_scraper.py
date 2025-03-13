@@ -76,7 +76,7 @@ def parse_ingredient(ingredient_line):
 
     # Case 1: Parentheses with optional x quantity
     # E.g. Soy Sauce (15ml)
-    parentheses_match = re.search(rf"^(.*?)\s*\((?P<quantity_parentheses>{quantity_regex})\s*(?P<unit_parentheses>(?:g|kg|ml|l|tsp|tbsp|cup|oz|lb|pinch|dash|pcs)\b)?\)\s*(?:x\s*(?P<multiplier>\d+(?:\.\d+)?))?$", ingredient_str)
+    parentheses_match = re.search(rf"^(.*?)\s*\((?P<quantity_parentheses>{quantity_regex})\s*(?P<unit_parentheses>(?:g|kg|ml|l|tsp|tbsp|cup|oz|lb|pinch|dash|pcs|pot of|pots of)\b)?\)\s*(?:x\s*(?P<multiplier>\d+(?:\.\d+)?))?$", ingredient_str)
     if parentheses_match:
         name = parentheses_match.group(1).strip()
         quantity_str = parentheses_match.group("quantity_parentheses")
@@ -107,7 +107,7 @@ def parse_ingredient(ingredient_line):
 
     # Case 4: Quantity Unit Name
     # E.g. 15ml Soy Sauce
-    quantity_unit_name_match = re.search(rf"^(?P<quantity_unit_name>{quantity_regex})\s*(?P<unit_unit_name>(?:g|kg|ml|l|tsp|tbsp|cup|oz|lb|pinch|dash|pcs)\b)\s*(?P<name_unit_name>.*)$", ingredient_str)
+    quantity_unit_name_match = re.search(rf"^(?P<quantity_unit_name>{quantity_regex})\s*(?P<unit_unit_name>(?:g|kg|ml|l|tsp|tbsp|cup|oz|lb|pinch|dash|pcs|pot of|pots of)\b)\s*(?P<name_unit_name>.*)$", ingredient_str)
     if quantity_unit_name_match:
         quantity_str = quantity_unit_name_match.group("quantity_unit_name")
         quantity = float(quantity_str) if "." in quantity_str or quantity_str.isdigit() else parse_fraction(quantity_str)
