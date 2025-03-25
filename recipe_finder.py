@@ -105,7 +105,7 @@ def display_recipes(results):
                     show_recipe_details(title, url)
                     break
 
-    results_listbox.bind("<Double-1>", on_recipe_select) #Double click to view recipe.
+    results_listbox.bind("<Double-1>", on_recipe_select)  # Double click to view recipe.
 
 
 
