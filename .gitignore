@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+env/
+build/
+dist/
+
+# SQLite databases (scraped data — not committed, see README for how to generate)
+*.sqlite
+*.sqlite3
+*.db
+
+# IDE
+.idea/
+
+# Environment / secrets
+.env
