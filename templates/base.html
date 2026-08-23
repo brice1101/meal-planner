@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Meal Planner{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        .ingredient-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4em;
+            background: var(--pico-primary-background);
+            color: var(--pico-primary-inverse);
+            border-radius: 999px;
+            padding: 0.2em 0.4em 0.2em 0.8em;
+            margin: 0.2em;
+            font-size: 0.9em;
+        }
+
+        .ingredient-tag button {
+            all: unset;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 0.3em;
+        }
+
+        #ingredient-tags:not(:empty) {
+            margin: 0.75em 0;
+        }
+
+        .recipe-card {
+            margin-bottom: 0.75em;
+        }
+    </style>
+</head>
+<body>
+<main class="container">
+    <hgroup>
+        <h1><a href="{{ url_for('index') }}">Meal Planner</a></h1>
+        <p>Find recipes from ingredients you already have.</p>
+    </hgroup>
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>

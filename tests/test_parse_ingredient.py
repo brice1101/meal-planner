@@ -50,3 +50,12 @@ def test_name_only():
 def test_allergen_marker_is_stripped():
     name, _, _ = parse_ingredient("Peanuts†")
     assert "†" not in name
+
+
+def test_leading_fraction_quantity():
+    # Regression: alternation order used to make "1/2" match only "1",
+    # leaving "/2 Beef Stock Cube" as the name.
+    name, quantity, unit = parse_ingredient("1/2 Beef Stock Cube")
+    assert name == "Beef Stock Cube"
+    assert float(quantity) == 0.5
+    assert unit is None

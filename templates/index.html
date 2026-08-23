@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<label for="ingredient-input">Add an ingredient</label>
+<input list="ingredient-options" id="ingredient-input" placeholder="e.g. garlic" autocomplete="off">
+<datalist id="ingredient-options">
+    {% for ingredient in all_ingredients %}
+    <option value="{{ ingredient }}"></option>
+    {% endfor %}
+</datalist>
+<button type="button" id="add-ingredient-button">Add</button>
+
+<div id="ingredient-tags"></div>
+
+<label>
+    <input type="checkbox" id="match-all-checkbox">
+    Must have all selected ingredients
+</label>
+
+<button type="button" id="search-button">Search</button>
+
+<section id="results" aria-live="polite"></section>
+
+<script>
+    const ingredientInput = document.getElementById("ingredient-input");
+    const tagContainer = document.getElementById("ingredient-tags");
+    const matchAllCheckbox = document.getElementById("match-all-checkbox");
+    const resultsSection = document.getElementById("results");
+    const selectedIngredients = [];
+
+    function renderTags() {
+        tagContainer.innerHTML = "";
+        selectedIngredients.forEach((ingredient, index) => {
+            const tag = document.createElement("span");
+            tag.className = "ingredient-tag";
+            tag.textContent = ingredient;
+
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.textContent = "×";
+            removeButton.setAttribute("aria-label", `Remove ${ingredient}`);
+            removeButton.addEventListener("click", () => {
+                selectedIngredients.splice(index, 1);
+                renderTags();
+            });
+
+            tag.appendChild(removeButton);
+            tagContainer.appendChild(tag);
+        });
+    }
+
+    function addIngredient() {
+        const value = ingredientInput.value.trim();
+        if (value && !selectedIngredients.includes(value)) {
+            selectedIngredients.push(value);
+            renderTags();
+        }
+        ingredientInput.value = "";
+        ingredientInput.focus();
+    }
+
+    document.getElementById("add-ingredient-button").addEventListener("click", addIngredient);
+    ingredientInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            addIngredient();
+        }
+    });
+
+    document.getElementById("search-button").addEventListener("click", async () => {
+        if (selectedIngredients.length === 0) {
+            resultsSection.innerHTML = "<p>Add at least one ingredient to search.</p>";
+            return;
+        }
+
+        const params = new URLSearchParams();
+        selectedIngredients.forEach((ingredient) => params.append("ingredient", ingredient));
+        params.append("match_all", matchAllCheckbox.checked ? "true" : "false");
+
+        resultsSection.innerHTML = "<p aria-busy=\"true\">Searching…</p>";
+
+        const response = await fetch(`/api/search?${params.toString()}`);
+        const data = await response.json();
+
+        if (data.results.length === 0) {
+            resultsSection.innerHTML = "<p>No recipes found for those ingredients.</p>";
+            return;
+        }
+
+        resultsSection.innerHTML = "";
+        data.results.forEach((recipe) => {
+            const card = document.createElement("article");
+            card.className = "recipe-card";
+            const link = document.createElement("a");
+            link.href = `/recipe/${recipe.recipe_id}`;
+            link.textContent = recipe.title;
+            card.appendChild(link);
+            resultsSection.appendChild(card);
+        });
+    });
+</script>
+{% endblock %}

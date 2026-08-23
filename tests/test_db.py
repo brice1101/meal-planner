@@ -62,7 +62,9 @@ def test_get_recipe_by_ingredients_match_any(db_path):
         links=[(1, 1, "2", None), (1, 3, "1", None), (2, 2, "4", None)],
     )
     results = db.get_recipe_by_ingredients(["garlic"], match_all=False, db_path=db_path)
-    assert results == [("Garlic Bread", "https://example.com/garlic-bread")]
+    assert results == [
+        {"recipe_id": 1, "title": "Garlic Bread", "instructions_url": "https://example.com/garlic-bread"}
+    ]
 
 
 def test_get_recipe_by_ingredients_match_all_requires_every_ingredient(db_path):
@@ -78,9 +80,32 @@ def test_get_recipe_by_ingredients_match_all_requires_every_ingredient(db_path):
     ) == []
     assert db.get_recipe_by_ingredients(
         ["garlic", "bread"], match_all=True, db_path=db_path
-    ) == [("Garlic Bread", "https://example.com/garlic-bread")]
+    ) == [{"recipe_id": 1, "title": "Garlic Bread", "instructions_url": "https://example.com/garlic-bread"}]
 
 
 def test_get_recipe_by_ingredients_empty_list_returns_empty(db_path):
     assert db.get_recipe_by_ingredients([], match_all=False, db_path=db_path) == []
     assert db.get_recipe_by_ingredients([], match_all=True, db_path=db_path) == []
+
+
+def test_get_recipe_detail(db_path):
+    _seed(
+        db_path,
+        recipes=[(1, "Garlic Bread", "https://example.com/garlic-bread")],
+        ingredients=[(1, "garlic"), (2, "bread")],
+        links=[(1, 1, "2", None), (1, 2, "1", "loaf")],
+    )
+    detail = db.get_recipe_detail(1, db_path)
+    assert detail == {
+        "recipe_id": 1,
+        "title": "Garlic Bread",
+        "instructions_url": "https://example.com/garlic-bread",
+        "ingredients": [
+            {"name": "bread", "quantity": "1", "unit": "loaf"},
+            {"name": "garlic", "quantity": "2", "unit": None},
+        ],
+    }
+
+
+def test_get_recipe_detail_missing_id_returns_none(db_path):
+    assert db.get_recipe_detail(999, db_path) is None

@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
     "selenium>=4.6",
+    "flask>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -19,7 +20,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["db", "gousto_scraper", "recipe_finder"]
+py-modules = ["db", "gousto_scraper", "app"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

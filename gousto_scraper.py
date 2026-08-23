@@ -84,7 +84,11 @@ def parse_ingredient(ingredient_line):
     ingredient_str = ingredient_line.replace('†','').strip() # Remove allergen marker from ingredients where needed
     ingredient_str = ingredient_str.strip()
 
-    quantity_regex = r"(\d+(?:\.\d+)?|\d+/\d+)"
+    # Fraction alternative must come first: regex alternation tries branches
+    # left-to-right and stops at the first match, so "1/2" would otherwise
+    # match just "1" (the plain-integer branch), leaving "/2" stuck onto the
+    # ingredient name.
+    quantity_regex = r"(\d+/\d+|\d+(?:\.\d+)?)"
 
     # Case 1: Parentheses with optional x quantity
     # E.g. Soy Sauce (15ml)
@@ -183,8 +187,11 @@ def normalize_ingredient_name(name):
     :param name: str
     :return: str
     """
+    # A leftover "/2"-style fragment (a fraction's denominator, stripped of
+    # its numerator by an earlier parsing bug) is quantity residue too, not
+    # part of the ingredient's identity.
     words = [w for w in name.lower().strip().split()
-             if w not in _STRIPPABLE_WORDS and not w.isdigit()]
+             if w not in _STRIPPABLE_WORDS and not re.fullmatch(r"/?\d+", w)]
 
     if not words:
         # Every word was stripped (e.g. the name was just "1 pot") - fall

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipe.title }} - Meal Planner{% endblock %}
+
+{% block content %}
+<p><a href="{{ url_for('index') }}">&larr; Back to search</a></p>
+<article>
+    <h2>{{ recipe.title }}</h2>
+    <h3>Ingredients</h3>
+    <ul>
+        {% for ingredient in recipe.ingredients %}
+        <li>
+            {{ ingredient.name }}{% if ingredient.quantity %} — {{ ingredient.quantity }}{% if ingredient.unit %}{{ ingredient.unit }}{% endif %}{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    <a href="{{ recipe.instructions_url }}" target="_blank" rel="noopener noreferrer" role="button">
+        View full recipe on Gousto
+    </a>
+</article>
+{% endblock %}

@@ -19,6 +19,7 @@ from gousto_scraper import normalize_ingredient_name
     ("1 red wine vinegar sachet", "red wine vinegar"),
     ("1 dijon mustard pot", "dijon mustard"),
     ("asparagus spears", "asparagus spear"),
+    ("/2 beef stock cube", "beef stock cube"),
 ])
 def test_known_duplicates_collapse(raw, expected):
     assert normalize_ingredient_name(raw) == expected
