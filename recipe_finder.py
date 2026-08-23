@@ -1,18 +1,9 @@
-import sqlite3
 import tkinter as tk
 from tkinter import ttk
 from tkinter import scrolledtext
 import webbrowser
 
-
-def get_all_ingredients():
-    """Retrieves all ingredient names from the database."""
-    conn = sqlite3.connect('recipes.sqlite')
-    cursor = conn.cursor()
-    cursor.execute("SELECT ingredient_name FROM ingredients")
-    ingredients = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return ingredients
+from db import get_all_ingredients, get_recipe_by_ingredients
 
 
 def update_ingredient_list(event):
@@ -29,38 +20,6 @@ def add_ingredient():
         ingredients_list_text.insert(tk.END, selected_ingredient + ", ")
         ingredient_combobox.set("") #clear combobox after selection
         ingredient_combobox.focus_set() #put cursor back in combobox.
-
-
-def get_recipe_by_ingredients(ingredients_list, all_ingredients):
-    """Retrieves recipes from the database based on a list of ingredients."""
-    conn = sqlite3.connect('recipes.sqlite')
-    cursor = conn.cursor()
-
-    placeholders = ', '.join(['?'] * len(ingredients_list))
-
-    if all_ingredients:
-        query = f"""
-        SELECT r.title, r.instructions_url
-        FROM recipes r
-        JOIN recipe_ingredients ri ON r.recipe_id = ri.recipe_id
-        JOIN ingredients i ON ri.ingredient_id = i.ingredient_id
-        WHERE i.ingredient_name IN ({placeholders})
-        GROUP BY r.recipe_id
-        HAVING COUNT(DISTINCT i.ingredient_id) = ?"""
-        cursor.execute(query, ingredients_list + [len(ingredients_list)])
-
-    else:
-        query = f"""
-            SELECT DISTINCT r.title, r.instructions_url
-            FROM recipes r
-            JOIN recipe_ingredients ri ON r.recipe_id = ri.recipe_id
-            JOIN ingredients i ON ri.ingredient_id = i.ingredient_id
-            WHERE i.ingredient_name IN ({placeholders})"""
-        cursor.execute(query, ingredients_list)
-
-    results = cursor.fetchall()
-    conn.close()
-    return results
 
 
 def search_recipes():

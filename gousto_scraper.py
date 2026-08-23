@@ -8,39 +8,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-DB_PATH = "recipes.sqlite"
+from db import DB_PATH, init_db
+
 CATEGORY_URL = "https://www.gousto.co.uk/cookbook/recipes"
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS recipes (
-    recipe_id INTEGER PRIMARY KEY,
-    title TEXT NOT NULL,
-    instructions_url TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS ingredients (
-    ingredient_id INTEGER PRIMARY KEY,
-    ingredient_name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS recipe_ingredients (
-    recipe_id INTEGER NOT NULL,
-    ingredient_id INTEGER NOT NULL,
-    quantity TEXT,
-    unit TEXT,
-    PRIMARY KEY (recipe_id, ingredient_id),
-    FOREIGN KEY (recipe_id) REFERENCES recipes(recipe_id),
-    FOREIGN KEY (ingredient_id) REFERENCES ingredients(ingredient_id)
-);
-"""
-
-
-def init_db(db_path=DB_PATH):
-    """Creates the database schema if it doesn't already exist."""
-    conn = sqlite3.connect(db_path)
-    conn.executescript(SCHEMA)
-    conn.commit()
-    conn.close()
 
 
 def build_driver():
@@ -324,6 +294,17 @@ def insert_recipe_data(recipe_data, db_path=DB_PATH):
             # Insert the new ingredient
             cursor.execute("INSERT INTO ingredients (ingredient_name) VALUES (?)", (ingredient_name,))
             ingredient_id = cursor.lastrowid
+
+        # Two raw ingredient lines in the same recipe can normalize to the
+        # same ingredient (e.g. "2 x minced Garlic" and "1 Garlic Clove"
+        # both becoming "garlic"); skip the link if it's already there
+        # rather than violating the (recipe_id, ingredient_id) primary key.
+        cursor.execute(
+            "SELECT 1 FROM recipe_ingredients WHERE recipe_id = ? AND ingredient_id = ?",
+            (recipe_id, ingredient_id),
+        )
+        if cursor.fetchone():
+            continue
 
         # Insert into the recipe_ingredients table
         cursor.execute("INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit) VALUES (?, ?, ?, ?)",
