@@ -1,22 +1,59 @@
-# Imports
 import re
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 import sqlite3
 import time
 
-service = Service(executable_path='chromedriver-win64/chromedriver.exe')  # Replace with your chromedriver path.
-driver = webdriver.Chrome(service=service)
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+DB_PATH = "recipes.sqlite"
+CATEGORY_URL = "https://www.gousto.co.uk/cookbook/recipes"
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS recipes (
+    recipe_id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    instructions_url TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS ingredients (
+    ingredient_id INTEGER PRIMARY KEY,
+    ingredient_name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS recipe_ingredients (
+    recipe_id INTEGER NOT NULL,
+    ingredient_id INTEGER NOT NULL,
+    quantity TEXT,
+    unit TEXT,
+    PRIMARY KEY (recipe_id, ingredient_id),
+    FOREIGN KEY (recipe_id) REFERENCES recipes(recipe_id),
+    FOREIGN KEY (ingredient_id) REFERENCES ingredients(ingredient_id)
+);
+"""
 
 
-def scrape_gousto_recipe(url):
+def init_db(db_path=DB_PATH):
+    """Creates the database schema if it doesn't already exist."""
+    conn = sqlite3.connect(db_path)
+    conn.executescript(SCHEMA)
+    conn.commit()
+    conn.close()
+
+
+def build_driver():
+    """Creates a Chrome WebDriver. Selenium Manager auto-resolves the correct
+    chromedriver binary for the host OS/browser, so no driver path is needed."""
+    return webdriver.Chrome()
+
+
+def scrape_gousto_recipe(url, driver):
     """
     Scrapes recipe information from a Gousto recipe webpage.
 
     :param url: str
+    :param driver: an active Selenium WebDriver
     :return: Dictionary of recipe information
     """
 
@@ -126,9 +163,11 @@ def parse_ingredient(ingredient_line):
     return ingredient_str, None, None
 
 
-def insert_recipe_data(recipe_data, db_path):
+def insert_recipe_data(recipe_data, db_path=DB_PATH):
     """
-    Inserts the recipe information into the database.
+    Inserts the recipe information into the database. A no-op if this recipe's
+    URL has already been scraped, so re-running the scraper (e.g. with a
+    higher page count, which includes all earlier recipes too) is safe.
 
     :param recipe_data: Dictionary of recipe data
     :param db_path: Path to .sqlite database file in string format
@@ -136,13 +175,15 @@ def insert_recipe_data(recipe_data, db_path):
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = cursor.fetchall()
+
+    cursor.execute("SELECT recipe_id FROM recipes WHERE instructions_url = ?", (recipe_data['url'],))
+    if cursor.fetchone():
+        conn.close()
+        return
+
     # Insert into the recipes table
     cursor.execute("INSERT INTO recipes (title, instructions_url) VALUES (?, ?)",
                    (recipe_data['title'], recipe_data['url']))
-    # cursor.execute("INSERT INTO recipes (title, instructions_url) VALUES (?, ?)",
-    # (recipe_data['title'], recipe_data['url'],))
     recipe_id = cursor.lastrowid  # Get the newly inserted recipe ID
 
     for line in recipe_data['ingredients']:
@@ -167,11 +208,12 @@ def insert_recipe_data(recipe_data, db_path):
     conn.close()
 
 
-def get_recipe_urls_from_category(category_url):
+def get_recipe_urls_from_category(category_url, driver):
     """
     Returns a list of urls found on a target Gousto category page
 
     :param category_url: str
+    :param driver: an active Selenium WebDriver
     :return: list of urls
     """
 
@@ -184,31 +226,29 @@ def get_recipe_urls_from_category(category_url):
         )
         # Find recipe links within the division
         recipe_links = target_division.find_elements(By.CSS_SELECTOR, "a[href*='/cookbook/']")
-        urls = []
-        for link in recipe_links:
-            urls.append(link.get_attribute("href"))
-        return urls
+        return [link.get_attribute("href") for link in recipe_links]
 
     except Exception as e:
         print(f"Error scraping {category_url}: {e}")
         return []
 
 
-def scrape_all_gousto_recipes(category_url):
+def scrape_all_gousto_recipes(category_url, driver):
     """
     Scrapes a supplied list of Gousto recipe page urls for recipe data
 
     :param category_url: str
+    :param driver: an active Selenium WebDriver
     :return: list of recipe datas
     """
     visited_urls = set()
     all_recipe_data = []
 
-    recipe_urls = get_recipe_urls_from_category(category_url)
+    recipe_urls = get_recipe_urls_from_category(category_url, driver)
     for recipe_url in recipe_urls:
         if recipe_url not in visited_urls:
             visited_urls.add(recipe_url)
-            recipe_data = scrape_gousto_recipe(recipe_url)  # Your existing scrape function.
+            recipe_data = scrape_gousto_recipe(recipe_url, driver)
             if recipe_data:
                 all_recipe_data.append(recipe_data)
             time.sleep(1)  # Rate limiting.
@@ -216,33 +256,46 @@ def scrape_all_gousto_recipes(category_url):
 
 
 def get_url():
-    """Gets url corresponding to number of pages wanted."""
+    """
+    Builds the Gousto cookbook URL for the requested page.
 
-    category_url = 'https://www.gousto.co.uk/cookbook/recipes'
+    Gousto's `?page=N` parameter is cumulative: page N returns all recipes
+    from page 1 through N (not just page N's own 16), and the site exposes no
+    "last page" indicator to validate against. So rather than hardcoding a
+    maximum that will inevitably go stale as Gousto adds recipes, any
+    non-negative page number is accepted; requesting one beyond the site's
+    current maximum simply returns everything available.
 
-    print("Enter number of pages to scrape. Each page contains 16 recipes."
-          "Enter '0' to scrape only the first 16 recipes."
-          "Maximum page number is 353")
-    num_pages = int(input())
-    while num_pages < 0 or num_pages > 353:
-        print("Invalid number. Must be in range 0 <= n <= 353")
-        num_pages = int(input())
+    :return: str
+    """
+    print("Enter number of pages to scrape. Each page contains 16 recipes, "
+          "and includes all recipes from earlier pages too. "
+          "Enter '0' to scrape only the first 16 recipes.")
+
+    while True:
+        raw_input_value = input("> ").strip()
+        if raw_input_value.isdigit():
+            num_pages = int(raw_input_value)
+            break
+        print("Please enter a whole number (0 or greater).")
+
     if num_pages == 0:
-        return category_url
-    else:
-        return f'{category_url}?page={num_pages}'
+        return CATEGORY_URL
+    return f'{CATEGORY_URL}?page={num_pages}'
 
 
 def main():
+    init_db()
     category_url = get_url()
+    driver = build_driver()
     try:
-        all_recipe_data = scrape_all_gousto_recipes(category_url)
-        # store all_recipe_data into the database.
+        all_recipe_data = scrape_all_gousto_recipes(category_url, driver)
     finally:
         driver.quit()
-    for i in all_recipe_data:
-        if i['ingredients']:
-            insert_recipe_data(i, 'recipes.sqlite')
+
+    for recipe in all_recipe_data:
+        if recipe['ingredients']:
+            insert_recipe_data(recipe)
 
 
 if __name__ == "__main__":
