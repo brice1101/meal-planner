@@ -71,7 +71,11 @@ def scrape_gousto_recipe(url, driver):
 
         # Get the list of ingredients
         ingredients_list = []
-        ingredients_elements = driver.find_elements(By.CSS_SELECTOR, "ul.IngredientList_ingredientList__14UI0 li")
+        # CSS-module class names carry a build hash suffix (e.g. "__14UI0")
+        # that changes whenever Gousto rebuilds their frontend; matching on a
+        # substring of the stable prefix instead means this selector doesn't
+        # need updating every time that hash changes.
+        ingredients_elements = driver.find_elements(By.CSS_SELECTOR, "ul[class*='IngredientList_ingredientList__'] li")
         for ingredient in ingredients_elements:
             ingredients_list.append(ingredient.text.strip())
 
@@ -221,15 +225,23 @@ def get_recipe_urls_from_category(category_url, driver):
     time.sleep(2)  # allow page to load.
 
     try:
+        # See the note in scrape_gousto_recipe: match on the stable prefix of
+        # the CSS-module class, not its build hash suffix, so this selector
+        # survives Gousto frontend rebuilds.
         target_division = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".PageSection_verticalPaddingSmallMediumLarge__2sHrM"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='PageSection_verticalPaddingSmallMediumLarge__']"))
         )
         # Find recipe links within the division
         recipe_links = target_division.find_elements(By.CSS_SELECTOR, "a[href*='/cookbook/']")
         return [link.get_attribute("href") for link in recipe_links]
 
     except Exception as e:
-        print(f"Error scraping {category_url}: {e}")
+        # Requesting a page beyond Gousto's current maximum returns a "page
+        # not found" page rather than clamping to the last valid page, which
+        # looks like this same timeout since the section we wait for is
+        # absent there too.
+        print(f"No recipes found at {category_url} ({e}). "
+              f"This page may not exist, or the site's markup may have changed.")
         return []
 
 
@@ -264,7 +276,9 @@ def get_url():
     "last page" indicator to validate against. So rather than hardcoding a
     maximum that will inevitably go stale as Gousto adds recipes, any
     non-negative page number is accepted; requesting one beyond the site's
-    current maximum simply returns everything available.
+    current maximum returns a "page not found" page, which the scraper
+    detects and reports rather than crashing on (see
+    get_recipe_urls_from_category).
 
     :return: str
     """
