@@ -15,12 +15,19 @@ dev = [
     "pytest>=8.0",
 ]
 
+[project.scripts]
+meal-planner-scrape = "meal_planner.scraper:main"
+meal-planner-serve = "meal_planner.webapp:main"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-py-modules = ["db", "gousto_scraper", "app"]
+[tool.setuptools.packages.find]
+include = ["meal_planner*"]
+
+[tool.setuptools.package-data]
+meal_planner = ["templates/*.html"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

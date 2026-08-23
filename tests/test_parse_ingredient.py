@@ -1,4 +1,4 @@
-from gousto_scraper import parse_fraction, parse_ingredient
+from meal_planner.scraper import parse_fraction, parse_ingredient
 
 
 def test_parse_fraction_valid():

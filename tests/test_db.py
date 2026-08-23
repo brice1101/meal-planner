@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 
-import db
+from meal_planner import db
 
 
 @pytest.fixture

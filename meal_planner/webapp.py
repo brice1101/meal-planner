@@ -2,7 +2,7 @@
 
 from flask import Flask, abort, jsonify, render_template, request
 
-import db
+from meal_planner import db
 
 
 def create_app():
@@ -31,6 +31,11 @@ def create_app():
 
 app = create_app()
 
-if __name__ == "__main__":
+
+def main():
     db.init_db()
     app.run(debug=True)
+
+
+if __name__ == "__main__":
+    main()

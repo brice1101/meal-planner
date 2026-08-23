@@ -2,8 +2,8 @@ import sqlite3
 
 import pytest
 
-import db
-from app import app as flask_app
+from meal_planner import db
+from meal_planner.webapp import app as flask_app
 
 
 @pytest.fixture

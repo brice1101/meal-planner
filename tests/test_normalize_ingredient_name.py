@@ -1,6 +1,6 @@
 import pytest
 
-from gousto_scraper import normalize_ingredient_name
+from meal_planner.scraper import normalize_ingredient_name
 
 
 @pytest.mark.parametrize("raw, expected", [

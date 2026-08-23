@@ -2,8 +2,8 @@ import sqlite3
 
 import pytest
 
-import db
-from gousto_scraper import dedupe_ingredients, insert_recipe_data
+from meal_planner import db
+from meal_planner.scraper import dedupe_ingredients, insert_recipe_data
 
 
 @pytest.fixture

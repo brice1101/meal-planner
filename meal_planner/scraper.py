@@ -8,7 +8,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from db import DB_PATH, init_db
+from meal_planner.db import DB_PATH, init_db
 
 CATEGORY_URL = "https://www.gousto.co.uk/cookbook/recipes"
 
