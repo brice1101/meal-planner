@@ -1,5 +1,6 @@
 import re
 import sqlite3
+import sys
 import time
 
 from selenium import webdriver
@@ -167,6 +168,126 @@ def parse_ingredient(ingredient_line):
     return ingredient_str, None, None
 
 
+# Words that don't change what you'd actually shop for, so they're stripped
+# rather than treated as part of the ingredient's identity: preparation-state
+# adjectives/adverbs, garlic's clove/cloves sizing word, packaging nouns that
+# sometimes leak into the name from the source text, and the filler word
+# "of". Deliberately NOT included: words like "dried" or "ground" — those
+# mark a genuinely different product (e.g. "dried basil" vs "basil", "ground
+# coriander" vs "coriander" are different things you'd buy separately).
+_STRIPPABLE_WORDS = {
+    "of",
+    "minced", "diced", "chopped", "crushed", "sliced", "grated", "cubed",
+    "finely", "roughly", "thinly", "coarsely", "thickly", "fresh",
+    "clove", "cloves",
+    "sachet", "sachets", "pot", "pots", "pack", "packs",
+}
+
+
+def _singularize(word):
+    """Strips a trailing plural "s"/"es" from a single word, with exceptions
+    for words that aren't actually plural (e.g. "asparagus", "hummus")."""
+    lowered = word.lower()
+    if len(lowered) <= 3 or lowered.endswith(("ss", "us", "is")):
+        return word
+    if lowered.endswith("ies"):
+        return word[:-3] + "y"
+    if lowered.endswith(("oes", "ses", "xes", "zes", "ches", "shes")):
+        return word[:-2]
+    if lowered.endswith("s"):
+        return word[:-1]
+    return word
+
+
+def normalize_ingredient_name(name):
+    """
+    Normalizes an ingredient name so near-duplicates collapse into one
+    ingredient (e.g. "garlic", "minced garlic", "garlic clove" -> "garlic").
+
+    This is a small, hand-picked set of rules rather than a full NLP
+    solution, so it won't catch every variant, and it deliberately leaves
+    words that mark a genuinely different product (e.g. "dried", "ground")
+    untouched rather than merging things that aren't actually the same
+    ingredient.
+
+    :param name: str
+    :return: str
+    """
+    words = [w for w in name.lower().strip().split()
+             if w not in _STRIPPABLE_WORDS and not w.isdigit()]
+
+    if not words:
+        # Every word was stripped (e.g. the name was just "1 pot") - fall
+        # back to the lowercased original rather than losing the ingredient.
+        return name.lower().strip()
+
+    words[-1] = _singularize(words[-1])
+    return " ".join(words)
+
+
+def dedupe_ingredients(db_path=DB_PATH):
+    """
+    Re-normalizes every existing ingredient name and merges any that now
+    collapse to the same value (e.g. "garlic clove" and "garlic cloves"
+    both becoming "garlic"). Safe to run repeatedly - already-normalized
+    ingredients are left alone. Useful for cleaning up a database that was
+    populated before normalize_ingredient_name existed.
+
+    :param db_path: Path to .sqlite database file in string format
+    :returns: None
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT ingredient_id, ingredient_name FROM ingredients")
+    groups = {}
+    for ingredient_id, name in cursor.fetchall():
+        groups.setdefault(normalize_ingredient_name(name), []).append(ingredient_id)
+
+    merged_count = 0
+    for normalized_name, ids in groups.items():
+        canonical_id = min(ids)
+
+        for duplicate_id in ids:
+            if duplicate_id == canonical_id:
+                continue
+
+            cursor.execute(
+                "SELECT recipe_id FROM recipe_ingredients WHERE ingredient_id = ?", (duplicate_id,)
+            )
+            for (recipe_id,) in cursor.fetchall():
+                cursor.execute(
+                    "SELECT 1 FROM recipe_ingredients WHERE recipe_id = ? AND ingredient_id = ?",
+                    (recipe_id, canonical_id),
+                )
+                if cursor.fetchone():
+                    # This recipe already links to the canonical ingredient;
+                    # drop the duplicate link rather than violate the
+                    # (recipe_id, ingredient_id) primary key.
+                    cursor.execute(
+                        "DELETE FROM recipe_ingredients WHERE recipe_id = ? AND ingredient_id = ?",
+                        (recipe_id, duplicate_id),
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE recipe_ingredients SET ingredient_id = ? "
+                        "WHERE recipe_id = ? AND ingredient_id = ?",
+                        (canonical_id, recipe_id, duplicate_id),
+                    )
+
+            cursor.execute("DELETE FROM ingredients WHERE ingredient_id = ?", (duplicate_id,))
+            merged_count += 1
+
+        cursor.execute(
+            "UPDATE ingredients SET ingredient_name = ? WHERE ingredient_id = ?",
+            (normalized_name, canonical_id),
+        )
+
+    conn.commit()
+    conn.close()
+    print(f"Merged {merged_count} duplicate ingredient(s).")
+
+
 def insert_recipe_data(recipe_data, db_path=DB_PATH):
     """
     Inserts the recipe information into the database. A no-op if this recipe's
@@ -192,7 +313,7 @@ def insert_recipe_data(recipe_data, db_path=DB_PATH):
 
     for line in recipe_data['ingredients']:
         ingredient_name, quantity, unit = parse_ingredient(line)
-        ingredient_name = ingredient_name.lower()
+        ingredient_name = normalize_ingredient_name(ingredient_name)
         # Check if the ingredient already exists
         cursor.execute("SELECT ingredient_id FROM ingredients WHERE ingredient_name = ?", (ingredient_name,))
         existing_ingredient = cursor.fetchone()
@@ -299,6 +420,12 @@ def get_url():
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--dedupe":
+        # One-off cleanup for a database populated before ingredient
+        # normalization existed; a fresh scrape never needs this.
+        dedupe_ingredients()
+        return
+
     init_db()
     category_url = get_url()
     driver = build_driver()
